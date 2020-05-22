@@ -6,8 +6,7 @@ from db.base import Base
 
 class User(Base):
     __tablename__ = 'users'
-    user_id = Column(Integer, primary_key=True, autoincrement=True)
-    username = Column(String, index=True, unique=True, nullable=False)
+    username = Column(String, index=True, primary_key=True, nullable=False)
     password_hash = Column(String, nullable=False)
 
     def __init__(self, username, password):
@@ -21,6 +20,4 @@ class User(Base):
         return pwd_context.verify(password, self.password_hash)
 
     def __repr__(self):
-        return "<User(id='%s', name='%s', password='%s')>" % (self.id, self.username, self.password_hash)
-
-
+        return "<User( name='%s', password='%s')>" % (self.username, self.password_hash)
