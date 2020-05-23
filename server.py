@@ -98,7 +98,7 @@ def get_users():
 """
 
 
-@app.route('/api/user/login', methods=['GET'])
+@app.route('/api/user/login', methods=['POST'])
 def authenticate_user():
     if not request.json or ('username' not in request.json or 'password' not in request.json):
         return make_response(jsonify({'error': 'Missing required parameter'}), 422)
@@ -286,7 +286,7 @@ def get_user_trips(username):
         commit_and_close(session)
         return make_response(jsonify({'Response': 'Incorrect username'}), 400)
     trips = session.query(Trip).filter(Trip.owner_name == username).all()
-    return make_response({'Trips': [t.convert_to_json_for_user() for t in trips]}, 201)
+    return make_response(jsonify([t.convert_to_json_for_user() for t in trips]), 201)
 
 
 """
@@ -325,11 +325,11 @@ def delete_trip(username, trip_id):
 
 """
 
-    Update trip with provided new tripname or date_to and date_form 
+    Update trip with provided new trip_name or date_to and date_form 
     Example: curl -i -X PUT -H "Content-Type: application/json" -d '{ "trip_name": "hohonewtrip"}'
      http://127.0.0.1:5000/api/user/aala/trip/1/update
      
-    Params: tripname or (date_to and date_form) 
+    Params: trip_name or (date_to and date_form) 
     Response: 
     - {'Response': 'OK'} if trip was updated successfully 
     - HTTP Error 422 'Missing required parameter' - if some params is missing 

@@ -30,7 +30,7 @@ class Trip(Base):
         return self.owner_name == user.username
 
     def convert_to_json_for_user(self):
-        return {"trip_id": self.trip_id, "tripname": self.trip_name,
+        return {"trip_id": self.trip_id, "trip_name": self.trip_name,
                 "date_from": str(self.date_from), "date_to": str(self.date_to)}
 
 
