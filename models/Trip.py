@@ -29,6 +29,11 @@ class Trip(Base):
     def is_owner(self, user):
         return self.owner_name == user.username
 
+    def convert_to_json_for_user(self):
+        return {"trip_id": self.trip_id, "tripname": self.trip_name,
+                "date_from": self.date_from, "date_to": self.date_to}
+
+
     def __repr__(self):
         return "<Trip(id='%s', name='%s', is from='%s to ='%s')>" % (
             self.trip_id, self.trip_name, str(self.date_from), str(self.date_to))

@@ -1,8 +1,8 @@
 import json
 from datetime import datetime
 
-from flask import Flask, request, jsonify, url_for, make_response
-from flask_restful import Resource, Api, abort
+from flask import Flask, request, jsonify, make_response
+from flask_restful import Api
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.sql.elements import and_
@@ -58,6 +58,30 @@ def add_user():
     commit_and_close(session)
 
     return make_response(jsonify({'username': username}), 201)
+
+
+"""
+
+    Get all users from database
+    Example: curl -i -X GET -H "Content-Type: application/json" -d http://127.0.0.1:5000/api/users
+    Params: None
+    Response: 
+        - {'Users': <list off users>}
+
+"""
+
+
+@app.route('/api/users', methods=['GET'])
+def get_users():
+
+    e = create_engine("sqlite:///trip_communicator.db")
+    Ses = sessionmaker(bind=e)
+    session = Ses()
+
+    users = session.query(User).all()
+    r = [u.convert_to_json() for u in users]
+    commit_and_close(session)
+    return make_response(jsonify({'Users': r}), 201)
 
 
 """
@@ -129,11 +153,18 @@ def join_chat(username, trip_id):
 
 """
 
-    Change password for existing user. Example: curl -i -X PUT -H "Content-Type: application/json" -d '{"password": 
-    "korona", "new_password": "pwd"}' http://127.0.0.1:5000/api/user/iza/change-password Params: new_password,
-    password Response: - {'Response': 'OK'} if password successfully changed - HTTP Error 422 'Missing required 
-    parameter' - if some params is missing -HTTP Error 400 Incorrect username if user doesn't exist -HTTP Error 403 
-    if user provided wrong current password """
+    Change password for existing user. 
+    Example: curl -i -X PUT -H "Content-Type: application/json" -d '{"password": 
+    "korona", "new_password": "pwd"}' http://127.0.0.1:5000/api/user/iza/change-password 
+    Params: new_password, password 
+    
+    Response:
+        - {'Response': 'OK'} if password successfully changed 
+        - HTTP Error 422 'Missing required parameter' - if some params is missing 
+        -HTTP Error 400 Incorrect username if user doesn't exist 
+        -HTTP Error 403 if user provided wrong current password 
+        
+"""
 
 
 @app.route('/api/user/<string:username>/change-password', methods=['PUT'])
@@ -195,7 +226,8 @@ def delete_user(username):
 
 """
 
-    Add new trip for user. Example: curl -i -X POST -H "Content-Type: application/json" -d '{"trip_name": "example 
+    Add new trip for user. 
+    Example: curl -i -X POST -H "Content-Type: application/json" -d '{"trip_name": "example 
     trip3", "date_to": "2020-06-12", "date_from": "2020-06-10"}' http://127.0.0.1:5000/api/user/ala/create-trip 
 
     Params: trip_name, date_from, date_to (dates must be in format '%Y-%m-%d' -> 2020-06-12)
@@ -254,10 +286,8 @@ def get_user_trips(username):
     if user is None:
         commit_and_close(session)
         return make_response(jsonify({'Response': 'Incorrect username'}), 400)
-    # todo make trips serializable and return with json
     trips = session.query(Trip).filter(Trip.owner_name == username).all()
-    print(trips)
-    return make_response(jsonify({'Trip': 'OK'}), 201)
+    return make_response(jsonify({'Trips': [t.convert_to_json_for_user() for t in trips]}), 201)
 
 
 """
@@ -301,10 +331,13 @@ def delete_trip(username, trip_id):
      http://127.0.0.1:5000/api/user/aala/trip/1/update
      
     Params: tripname or (date_to and date_form) 
-    Response: - {
-    'Response': 'OK'} if trip was updated successfully - HTTP Error 422 'Missing required parameter' - if some params 
-    is missing -HTTP Error 400 Incorrect username if user doesn't exist -HTTP Error 403 if user is not the owner of 
-    trip or trip doesn't exist """
+    Response: 
+    - {'Response': 'OK'} if trip was updated successfully 
+    - HTTP Error 422 'Missing required parameter' - if some params is missing 
+    -HTTP Error 400 Incorrect username if user doesn't exist 
+    -HTTP Error 403 if user is not the owner of trip or trip doesn't exist 
+    
+"""
 
 
 def change_tripname(username, trip_id, trip_name):
@@ -373,6 +406,10 @@ def update_trip(username, trip_id):
 """
 
 
+def get_user_participants(participants):
+    return [p.user for p in participants]
+
+
 @app.route('/api/trip/<int:trip_id>/participants', methods=['GET'])
 def get_participants(trip_id):
 
@@ -383,60 +420,94 @@ def get_participants(trip_id):
     trip = session.query(Trip).filter_by(trip_id=trip_id).first()
     if trip is None:
         commit_and_close(session)
-        return make_response(jsonify({'Response': 'Incorrect trip_id'}), 400)
+        return make_response(jsonify({'Response': 'Incorrect trip_id '}), 400)
     participants = session.query(Participant).filter_by(trip_id=trip.trip_id).all()
-    participants.append(trip.owner)
-    print(participants)
     commit_and_close(session)
-    # todo serialization
-    return make_response(jsonify({'Participants': 'OK'}), 201)
+    return make_response(jsonify({"Participants": [p.convert_to_json() for p in participants]}), 201)
 
 
-#  todo need to rewrite 2 method below
-@app.route('/api/add_participants', methods=['POST'])
-def add_participants():
+"""
+
+    Add one or more participants to the trip. Only owner can add participants
+    Example:  curl -i -X POST -H "Content-Type: application/json" -d '{"participants": [{"username": "pawel"}, 
+    {"username": "ela2"}]}' http://127.0.0.1:5000/api/user/aala/trip/1/add-participants
+
+    Params:participants list
+    Response: 
+        - {'Response': 'OK'} if users was added successfully 
+        - HTTP Error 422 'Missing required parameter' - if some params is missing 
+        -HTTP Error 403 if user is not the owner of trip or trip doesn't exist 
+
+"""
+
+# czy powinnam zwracac którzy użytkownicy zostali dodani a którzy nie?
+@app.route('/api/user/<string:username>/trip/<int:trip_id>/add-participants', methods=['POST'])
+def add_participants(username, trip_id):
+
+    if not request.json or 'participants' not in request.json:
+        return make_response(jsonify({'error': 'Missing required parameter'}), 422)
+    participants = request.json.get('participants')
+
     e = create_engine("sqlite:///trip_communicator.db")
     Ses = sessionmaker(bind=e)
     session = Ses()
-    trip_id = request.json.get('trip_id')
-    owner_name = request.json.get('owner_name')
-    participants = request.json.get('participants')
-    trip = session.query(Trip).filter(and_(Trip.trip_id == trip_id, Trip.owner_name == owner_name)).first()
-    print(trip)
+
+    trip = session.query(Trip).filter(and_(Trip.trip_id == trip_id, Trip.owner_name == username)).first()
     if trip is not None:
-        print("can add participants")
         for p in participants:
+            if 'username' not in p:
+                return make_response(jsonify({'error': 'Missing required parameter'}), 422)
+
             user = session.query(User).filter_by(username=p["username"]).first()
-            participant = Participant(user, trip)
-            session.add(participant)
+            if user is not None:
+                participant = Participant(user, trip)
+                session.add(participant)
 
         commit_and_close(session)
-        return {'hello': 'updated added'}
+        return make_response(jsonify({'Response': 'OK'}), 201)
 
     commit_and_close(session)
-    return {'hello': 'update not ok'}
+    return make_response(jsonify({'Error': 'User is not the owner of trip or trip doesn\'t exist'}), 403)
 
 
-@app.route('/api/delete_participants', methods=['DELETE'])
-def delete_participants():
+"""
+
+    Remove one or more participants from the trip. Only owner can remove participants
+    Example:  
+         curl -i -X DELETE -H "Content-Type: application/json" -d '{"participants": [{"username": "pawel"}, 
+         {"username": "elaaa2"}]}' http://127.0.0.1:5000/api/user/aala/trip/1/delete-participants
+
+    Params:participants list
+    Response: 
+        - {'Response': 'OK'} if users was deleted successfully 
+        - HTTP Error 422 'Missing required parameter' - if some params is missing 
+        -HTTP Error 403 if user is not the owner of trip or trip doesn't exist 
+
+"""
+
+
+@app.route('/api/user/<string:username>/trip/<int:trip_id>/delete-participants', methods=['DELETE'])
+def delete_participants(username, trip_id):
+
+    if not request.json or 'participants' not in request.json:
+        return make_response(jsonify({'error': 'Missing required parameter'}), 422)
+    participants = request.json.get('participants')
+
     e = create_engine("sqlite:///trip_communicator.db")
     Ses = sessionmaker(bind=e)
     session = Ses()
-    trip_id = request.json.get('trip_id')
-    owner_name = request.json.get('owner_name')
-    participants = request.json.get('participants')
-    trip = session.query(Trip).filter(and_(Trip.trip_id == trip_id, Trip.owner_name == owner_name)).first()
-    print(trip)
+
+    trip = session.query(Trip).filter(and_(Trip.trip_id == trip_id, Trip.owner_name == username)).first()
     if trip is not None:
-        print("can be removed participants")
         for p in participants:
+            if 'username' not in p:
+                return make_response(jsonify({'error': 'Missing required parameter'}), 422)
             session.query(Participant).filter(
                 and_(Participant.username == p["username"], Participant.trip_id == trip_id)).delete()
         commit_and_close(session)
-        return {'hello': 'delete ok'}
-
+        return make_response(jsonify({'Response': 'OK'}), 201)
     commit_and_close(session)
-    return {'hello': 'update not ok'}
+    return make_response(jsonify({'Error': 'User is not the owner of trip or trip doesn\'t exist'}), 403)
 
 
 if __name__ == '__main__':

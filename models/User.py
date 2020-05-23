@@ -19,5 +19,9 @@ class User(Base):
     def verify_password(self, password):
         return pwd_context.verify(password, self.password_hash)
 
+    def convert_to_json(self):
+        return {"username": self.username}
+
+
     def __repr__(self):
         return "<User( name='%s', password='%s')>" % (self.username, self.password_hash)
