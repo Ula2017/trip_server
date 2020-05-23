@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Table
+from sqlalchemy import Column, Integer, String, ForeignKey, Date
 from sqlalchemy.orm import relationship
 
 from db.base import Base
@@ -14,8 +14,8 @@ class Trip(Base):
     __tablename__ = 'trips'
     trip_id = Column(Integer, primary_key=True)
     trip_name = Column(String, index=True)
-    date_from = Column(DateTime)
-    date_to = Column(DateTime)
+    date_from = Column(Date)
+    date_to = Column(Date)
     owner_name = Column(Integer, ForeignKey('users.username'))
     owner = relationship("User")
     # participants = relationship("User", secondary=trip_participants_association)
@@ -31,7 +31,7 @@ class Trip(Base):
 
     def convert_to_json_for_user(self):
         return {"trip_id": self.trip_id, "tripname": self.trip_name,
-                "date_from": self.date_from, "date_to": self.date_to}
+                "date_from": str(self.date_from), "date_to": str(self.date_to)}
 
 
     def __repr__(self):

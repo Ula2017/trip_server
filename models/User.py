@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String
+from sqlalchemy import Column, String
 from passlib.apps import custom_app_context as pwd_context
 
 from db.base import Base

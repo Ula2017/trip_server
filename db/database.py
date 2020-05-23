@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -40,14 +40,14 @@ def add_initial_values():
     session.add(user3)
     session.add(user4)
 
-    trip = [Trip("Paris", datetime(2020, 6, 5, 10), datetime(2020, 6, 10, 20), user1),
-            Trip("Warsaw", datetime(2020, 5, 30, 10), datetime(2020, 6, 7, 14), user1),
-            Trip("Cracow", datetime(2020, 7, 10, 10), datetime(2020, 7, 12, 19, 57, 10), user2),
-            Trip("Brussels", datetime(2020, 6, 11, 5), datetime(2020, 6, 13, 20), user2),
-            Trip("Warsaw", datetime(2020, 6, 15, 10), datetime(2020, 6, 20, 20), user3),
-            Trip("Liverpool", datetime(2020, 8, 10, 10), datetime(2020, 8, 15, 20), user3),
-            Trip("Malta", datetime(2020, 6, 5, 10), datetime(2020, 6, 7, 20), user3),
-            Trip("London", datetime(2020, 6, 9, 10), datetime(2020, 6, 10, 20), user3)]
+    trip = [Trip("Paris", date(2020, 6, 5), date(2020, 6, 10), user1),
+            Trip("Warsaw", date(2020, 5, 30), date(2020, 6, 7), user1),
+            Trip("Cracow", date(2020, 7, 10), date(2020, 7, 12), user2),
+            Trip("Brussels", date(2020, 6, 11), date(2020, 6, 13), user2),
+            Trip("Warsaw", date(2020, 6, 15), date(2020, 6, 20), user3),
+            Trip("Liverpool", date(2020, 8, 10), date(2020, 8, 15), user3),
+            Trip("Malta", date(2020, 6, 5), date(2020, 6, 7), user3),
+            Trip("London", date(2020, 6, 9), date(2020, 6, 10), user3)]
 
     for t in trip:
         session.add(t)
@@ -76,10 +76,10 @@ def test_queries():
     for t in trips:
         print(f'Trip id: {t.trip_id} , trip name: {t.trip_name} , owner: {t.owner.username}')
 
-    trips_june = session.query(Trip).filter(Trip.date_from.between(datetime(2020, 6, 1), datetime(2020, 6, 30))).all()
+    trips_june = session.query(Trip).filter(Trip.date_from.between(date(2020, 6, 1), date(2020, 6, 30))).all()
     print('\n### All trips starting in June:')
     for t in trips_june:
-        print(f'Trip id: {t.trip_id} , trip name: {t.trip_name} , owner: {t.owner.username}')
+        print(f'Trip id: {t.trip_id} , trip name: {t.trip_name} , owner: {t.owner.username}, start_date: {t.date_from}')
 
     trips_ala = session.query(Trip).join(User, Trip.owner).filter(User.username == 'ala').all()
     print('\n### All Ala\'s trips:')

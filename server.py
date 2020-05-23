@@ -237,17 +237,15 @@ def delete_user(username):
 """
 
 
-# datetime format example: "2020-06-12, 4:59:31"
 @app.route('/api/user/<string:username>/create-trip', methods=['POST'])
 def add_trip(username):
-    if not request.json or (
-            'trip_name' not in request.json or 'date_from' not in request.json or 'date_to' not in request.json):
+    if not request.json or ('trip_name' not in request.json or 'date_from' not in request.json or 'date_to' not in request.json):
         return make_response(jsonify({'error': 'Missing required parameter'}), 422)
 
     datetime_format = '%Y-%m-%d'  # The format
     trip_name = request.json.get('trip_name')
-    date_from = datetime.strptime(request.json.get('date_from'), datetime_format)
-    date_to = datetime.strptime(request.json.get('date_to'), datetime_format)
+    date_from = datetime.strptime(request.json.get('date_from'), datetime_format).date()
+    date_to = datetime.strptime(request.json.get('date_to'), datetime_format).date()
 
     e = create_engine("sqlite:///trip_communicator.db")
     Ses = sessionmaker(bind=e)
@@ -260,9 +258,10 @@ def add_trip(username):
 
     trip = Trip(trip_name, date_from, date_to, user)
     session.add(trip)
-    session.flush()
+    session.commit()
+    trip_id = trip.trip_id
     session.close()
-    return make_response(jsonify({'Trip id': trip.trip_id}), 201)
+    return make_response(jsonify({'Trip id': trip_id}), 201)
 
 
 """
@@ -287,7 +286,7 @@ def get_user_trips(username):
         commit_and_close(session)
         return make_response(jsonify({'Response': 'Incorrect username'}), 400)
     trips = session.query(Trip).filter(Trip.owner_name == username).all()
-    return make_response(jsonify({'Trips': [t.convert_to_json_for_user() for t in trips]}), 201)
+    return make_response({'Trips': [t.convert_to_json_for_user() for t in trips]}, 201)
 
 
 """
@@ -366,8 +365,8 @@ def change_trip_dates(username, trip_id, date_from, date_to):
     session = Ses()
 
     datetime_format = '%Y-%m-%d'  # The format
-    dtf = datetime.strptime(date_from, datetime_format)
-    dtt = datetime.strptime(date_to, datetime_format)
+    dtf = datetime.strptime(date_from, datetime_format).date()
+    dtt = datetime.strptime(date_to, datetime_format).date()
 
     user = session.query(User).filter_by(username=username).first()
     if user is None:
