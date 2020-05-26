@@ -326,7 +326,7 @@ def get_trips(username):
         return make_response(jsonify({'Response': 'Incorrect username'}), 400)
     trips_participated = session.query(Trip).join(Participant, Trip.trip_id == Participant.trip_id).\
         filter(Participant.username == username).all()
-    
+    commit_and_close(session)
     return make_response(jsonify({'Trips': [t.convert_to_json() for t in trips_participated]}), 201)
 
 
