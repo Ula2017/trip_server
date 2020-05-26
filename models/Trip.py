@@ -25,7 +25,11 @@ class Trip(Base):
     def convert_to_json_for_user(self, participants):
         return {"trip_id": self.trip_id, "trip_name": self.trip_name,
                 "date_from": str(self.date_from), "date_to": str(self.date_to),
-                "participants": [p.convert_to_json() for p in participants]}
+                "participants": [p.convert_to_json() for p in participants], "owner": self.owner_name}
+
+    def convert_to_json(self):
+        return {"trip_id": self.trip_id, "trip_name": self.trip_name,
+                "date_from": str(self.date_from), "date_to": str(self.date_to), "owner": self.owner_name}
 
     def set_new_trip_name(self, t):
         self.trip_name = t

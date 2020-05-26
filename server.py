@@ -276,7 +276,7 @@ def add_trip(username):
 
 """
 
-    Get all trips for user (user is owner). 
+    Get all trips for user where the user is owner. 
     Example: curl -i -X GET -H "Content-Type: application/json" http://127.0.0.1:5000/api/user/ala/trips 
     Params: None
     Response: 
@@ -301,6 +301,33 @@ def get_user_trips(username):
         participants.append(session.query(Participant).filter(Participant.trip_id == t.trip_id).all())
 
     return make_response(jsonify([trips[i].convert_to_json_for_user(participants[i]) for i in range(len(trips))]), 201)
+
+
+"""
+
+    Get all trips for user. 
+    Example: curl -i -X GET -H "Content-Type: application/json" http://127.0.0.1:5000/api/user/ala/all-trips 
+    Params: None
+    Response: 
+        - {'Trips: '<list of trip for user>'} if user exists
+        -HTTP Error 400 Incorrect username if user doesn't exist
+"""
+
+
+@app.route('/api/user/<string:username>/all-trips', methods=['GET'])
+def get_trips(username):
+    e = create_engine("sqlite:///trip_communicator.db")
+    Ses = sessionmaker(bind=e)
+    session = Ses()
+
+    user = session.query(User).filter_by(username=username).first()
+    if user is None:
+        commit_and_close(session)
+        return make_response(jsonify({'Response': 'Incorrect username'}), 400)
+    trips_participated = session.query(Trip).join(Participant, Trip.trip_id == Participant.trip_id).\
+        filter(Participant.username == username).all()
+    
+    return make_response(jsonify({'Trips': [t.convert_to_json() for t in trips_participated]}), 201)
 
 
 """
