@@ -21,4 +21,4 @@ class Participant(Base):
 
     def __repr__(self):
         return "<User_id='%s'is participating in trip:'%s' having id: '%s')>" % (
-            self.user.username, self.trip.trip_name, self.participant_id)
+            self.user.username, self.trip.trip_id, self.participant_id)

@@ -73,7 +73,6 @@ def add_user():
 
 @app.route('/api/users', methods=['GET'])
 def get_users():
-
     e = create_engine("sqlite:///trip_communicator.db")
     Ses = sessionmaker(bind=e)
     session = Ses()
@@ -227,8 +226,9 @@ def delete_user(username):
 """
 
     Add new trip for user. 
-    Example: curl -i -X POST -H "Content-Type: application/json" -d '{"trip_name": "example 
-    trip3", "date_to": "2020-06-12", "date_from": "2020-06-10"}' http://127.0.0.1:5000/api/user/ala/create-trip 
+    Example: curl -i -X POST -H "Content-Type: application/json" -d '{"trip_name": "test trip3", 
+    "date_to": "2020-06-12", "date_from": "2020-06-10", "participants": [{"username": "ela"}, {"username": "aala"}]}'
+     http://127.0.0.1:5000/api/user/ela2/create-trip 
 
     Params: trip_name, date_from, date_to (dates must be in format '%Y-%m-%d' -> 2020-06-12)
     Response: 
@@ -239,13 +239,15 @@ def delete_user(username):
 
 @app.route('/api/user/<string:username>/create-trip', methods=['POST'])
 def add_trip(username):
-    if not request.json or ('trip_name' not in request.json or 'date_from' not in request.json or 'date_to' not in request.json):
+    if not request.json or ('trip_name' not in request.json or 'date_from' not in request.json
+                            or 'date_to' not in request.json or 'participants' not in request.json):
         return make_response(jsonify({'error': 'Missing required parameter'}), 422)
 
     datetime_format = '%Y-%m-%d'  # The format
-    trip_name = request.json.get('trip_name')
+    participants = request.json.get('participants')
     date_from = datetime.strptime(request.json.get('date_from'), datetime_format).date()
     date_to = datetime.strptime(request.json.get('date_to'), datetime_format).date()
+    trip_name = request.json.get('trip_name')
 
     e = create_engine("sqlite:///trip_communicator.db")
     Ses = sessionmaker(bind=e)
@@ -259,7 +261,15 @@ def add_trip(username):
     trip = Trip(trip_name, date_from, date_to, user)
     session.add(trip)
     session.commit()
+    for p in participants:
+        participant = add_participant_from_response(session, p, trip)
+        if participant is not None:
+            session.add(participant)
+    owner_participant = Participant(user, trip)
+    session.add(owner_participant)
+    session.commit()
     trip_id = trip.trip_id
+
     session.close()
     return make_response(jsonify({'Trip id': trip_id}), 201)
 
@@ -286,7 +296,11 @@ def get_user_trips(username):
         commit_and_close(session)
         return make_response(jsonify({'Response': 'Incorrect username'}), 400)
     trips = session.query(Trip).filter(Trip.owner_name == username).all()
-    return make_response(jsonify([t.convert_to_json_for_user() for t in trips]), 201)
+    participants = []
+    for t in trips:
+        participants.append(session.query(Participant).filter(Participant.trip_id == t.trip_id).all())
+
+    return make_response(jsonify([trips[i].convert_to_json_for_user(participants[i]) for i in range(len(trips))]), 201)
 
 
 """
@@ -339,59 +353,59 @@ def delete_trip(username, trip_id):
 """
 
 
-def change_tripname(username, trip_id, trip_name):
-    e = create_engine("sqlite:///trip_communicator.db")
-    Ses = sessionmaker(bind=e)
-    session = Ses()
+def update_participants(participants, trip, session):
+    for p in participants:
+        if 'username' in p:
+            user = session.query(User).filter_by(username=p["username"]).first()
 
-    user = session.query(User).filter_by(username=username).first()
-    if user is None:
-        commit_and_close(session)
-        return make_response(jsonify({'error': 'Incorrect username'}), 400)
-    trip = session.query(Trip).filter_by(trip_id=trip_id).first()
-    if trip is not None and trip.is_owner(user):
-        session.query(Trip).filter(Trip.trip_id == trip_id). \
-            update({"trip_name": trip_name})
-        commit_and_close(session)
-        return make_response(jsonify({'Response': 'OK'}), 201)
-
-    commit_and_close(session)
-    return make_response(jsonify({'Response': 'User is not the owner of trip or trip doesn\'t exist'}), 403)
-
-
-def change_trip_dates(username, trip_id, date_from, date_to):
-    e = create_engine("sqlite:///trip_communicator.db")
-    Ses = sessionmaker(bind=e)
-    session = Ses()
-
-    datetime_format = '%Y-%m-%d'  # The format
-    dtf = datetime.strptime(date_from, datetime_format).date()
-    dtt = datetime.strptime(date_to, datetime_format).date()
-
-    user = session.query(User).filter_by(username=username).first()
-    if user is None:
-        commit_and_close(session)
-        return make_response(jsonify({'error': 'Incorrect username'}), 400)
-
-    trip = session.query(Trip).filter_by(trip_id=trip_id).first()
-    if trip is not None and trip.is_owner(user):
-        session.query(Trip).filter(Trip.trip_id == trip_id). \
-            update({"date_from": dtf, "date_to": dtt})
-        commit_and_close(session)
-        return make_response(jsonify({'Response': 'OK'}), 201)
-
-    commit_and_close(session)
-    return make_response(jsonify({'Response': 'User is not the owner of trip or trip doesn\'t exist'}), 403)
+            if user is not None:
+                participant = session.query(Participant).filter_by(username=user.username, trip_id=trip.trip_id).first()
+                if participant is None:
+                    new_participant = Participant(user, trip)
+                    session.add(new_participant)
+        else:
+            return make_response(jsonify({'error': 'Missing required parameter in participants'}), 422)
 
 
 @app.route('/api/user/<string:username>/trip/<string:trip_id>/update', methods=['PUT'])
 def update_trip(username, trip_id):
-    if request.json and 'trip_name' in request.json:
-        return change_tripname(username, trip_id, request.json.get('trip_name'))
-    elif request.json and 'date_from' in request.json and 'date_to' in request.json:
-        return change_trip_dates(username, trip_id, request.json.get('date_from'), request.json.get('date_to'))
-    else:
+    if request.json is None:
         return make_response(jsonify({'error': 'Missing required parameter'}), 422)
+
+    e = create_engine("sqlite:///trip_communicator.db")
+    Ses = sessionmaker(bind=e)
+    session = Ses()
+
+    user = session.query(User).filter_by(username=username).first()
+    if user is None:
+        commit_and_close(session)
+        return make_response(jsonify({'error': 'Incorrect username'}), 400)
+
+    trip = session.query(Trip).filter_by(trip_id=trip_id).first()
+
+    datetime_format = '%Y-%m-%d'
+    isChanged = False
+
+    if trip is not None and trip.is_owner(user):
+
+        if 'date_from' in request.json:
+            isChanged = True
+            trip.date_from = datetime.strptime(request.json['date_from'], datetime_format).date()
+        if 'date_to' in request.json:
+            isChanged = True
+            trip.date_to = datetime.strptime(request.json['date_to'], datetime_format).date()
+        if 'trip_name' in request.json:
+            isChanged = True
+            trip.trip_name = request.json['trip_name']
+        if 'participants' in request.json:
+            isChanged = True
+            update_participants(request.json['participants'], trip, session)
+        commit_and_close(session)
+        if isChanged:
+            return make_response(jsonify({'Response': 'OK'}), 201)
+        return make_response(jsonify({'error': 'Missing at least one required parameter'}), 422)
+
+    return make_response(jsonify({'Response': 'User is not the owner of trip or trip doesn\'t exist'}), 403)
 
 
 """
@@ -411,7 +425,6 @@ def get_user_participants(participants):
 
 @app.route('/api/trip/<int:trip_id>/participants', methods=['GET'])
 def get_participants(trip_id):
-
     e = create_engine("sqlite:///trip_communicator.db")
     Ses = sessionmaker(bind=e)
     session = Ses()
@@ -435,14 +448,24 @@ def get_participants(trip_id):
     Response: 
         - {'Response': 'OK'} if users was added successfully 
         - HTTP Error 422 'Missing required parameter' - if some params is missing 
-        -HTTP Error 403 if user is not the owner of trip or trip doesn't exist 
+        -HTTP Error 403 if user is not the owner of trip or trip doesn't exist
 
 """
+
+
+def add_participant_from_response(session, json_participant, trip):
+    if 'username' not in json_participant:
+        return make_response(jsonify({'error': 'Missing required parameter'}), 422)
+
+    user = session.query(User).filter_by(username=json_participant["username"]).first()
+    if user is not None:
+        return Participant(user, trip)
+    return None
+
 
 # czy powinnam zwracac którzy użytkownicy zostali dodani a którzy nie?
 @app.route('/api/user/<string:username>/trip/<int:trip_id>/add-participants', methods=['POST'])
 def add_participants(username, trip_id):
-
     if not request.json or 'participants' not in request.json:
         return make_response(jsonify({'error': 'Missing required parameter'}), 422)
     participants = request.json.get('participants')
@@ -454,12 +477,8 @@ def add_participants(username, trip_id):
     trip = session.query(Trip).filter(and_(Trip.trip_id == trip_id, Trip.owner_name == username)).first()
     if trip is not None:
         for p in participants:
-            if 'username' not in p:
-                return make_response(jsonify({'error': 'Missing required parameter'}), 422)
-
-            user = session.query(User).filter_by(username=p["username"]).first()
-            if user is not None:
-                participant = Participant(user, trip)
+            participant = add_participant_from_response(session, p, trip)
+            if participant is not None:
                 session.add(participant)
 
         commit_and_close(session)
@@ -487,7 +506,6 @@ def add_participants(username, trip_id):
 
 @app.route('/api/user/<string:username>/trip/<int:trip_id>/delete-participants', methods=['DELETE'])
 def delete_participants(username, trip_id):
-
     if not request.json or 'participants' not in request.json:
         return make_response(jsonify({'error': 'Missing required parameter'}), 422)
     participants = request.json.get('participants')

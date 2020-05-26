@@ -22,6 +22,5 @@ class User(Base):
     def convert_to_json(self):
         return {"username": self.username}
 
-
     def __repr__(self):
         return "<User( name='%s', password='%s')>" % (self.username, self.password_hash)
