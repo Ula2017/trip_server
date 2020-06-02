@@ -4,9 +4,10 @@
 Joanna Chyży, Ula Soboń
 
 ### Disclaimer
-This repository contains source code for the server for trips chat application. User can log in to application, create trips and chat with participants. 
+This repository contains source code for the server for trips chat application. User can log in to application, 
+create trips and chat with participants. 
 
-###Configuring and running server
+### Configuring and running server
 
 ```bash
 $ pip install --upgrade pip
