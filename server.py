@@ -330,8 +330,9 @@ def get_trips(username):
     participants = []
     for t in trips_participated:
         participants.append(session.query(Participant).filter(Participant.trip_id == t.trip_id).all())
-    # commit_and_close(session)
-    return make_response(jsonify([trips_participated[i].convert_to_json_for_user(participants[i]) for i in range(len(trips_participated))]), 201)
+    response = [trips_participated[i].convert_to_json_for_user(participants[i]) for i in range(len(trips_participated))]
+    commit_and_close(session)
+    return make_response(jsonify(response), 201)
 
 
 """
@@ -488,7 +489,6 @@ def add_participant_from_response(session, json_participant, trip):
     return None
 
 
-# czy powinnam zwracac którzy użytkownicy zostali dodani a którzy nie?
 @app.route('/api/user/<string:username>/trip/<int:trip_id>/add-participants', methods=['POST'])
 def add_participants(username, trip_id):
     if not request.json or 'participants' not in request.json:
