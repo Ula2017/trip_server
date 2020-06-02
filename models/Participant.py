@@ -17,7 +17,7 @@ class Participant(Base):
         self.trip = trip
 
     def convert_to_json(self):
-        return {"username": self.username, "participant_id": self.participant_id}
+        return self.username
 
     def __repr__(self):
         return "<User_id='%s'is participating in trip:'%s' having id: '%s')>" % (

@@ -326,8 +326,13 @@ def get_trips(username):
         return make_response(jsonify({'Response': 'Incorrect username'}), 400)
     trips_participated = session.query(Trip).join(Participant, Trip.trip_id == Participant.trip_id).\
         filter(Participant.username == username).all()
+
+    participants = []
+    for t in trips_participated:
+        participants.append(session.query(Participant).filter(Participant.trip_id == t.trip_id).all())
+    response = [trips_participated[i].convert_to_json_for_user(participants[i]) for i in range(len(trips_participated))]
     commit_and_close(session)
-    return make_response(jsonify({'Trips': [t.convert_to_json() for t in trips_participated]}), 201)
+    return make_response(jsonify(response), 201)
 
 
 """
@@ -382,16 +387,13 @@ def delete_trip(username, trip_id):
 
 def update_participants(participants, trip, session):
     for p in participants:
-        if 'username' in p:
-            user = session.query(User).filter_by(username=p["username"]).first()
+        user = session.query(User).filter_by(username=p).first()
 
-            if user is not None:
-                participant = session.query(Participant).filter_by(username=user.username, trip_id=trip.trip_id).first()
-                if participant is None:
-                    new_participant = Participant(user, trip)
-                    session.add(new_participant)
-        else:
-            return make_response(jsonify({'error': 'Missing required parameter in participants'}), 422)
+        if user is not None:
+            participant = session.query(Participant).filter_by(username=user.username, trip_id=trip.trip_id).first()
+            if participant is None:
+                new_participant = Participant(user, trip)
+                session.add(new_participant)
 
 
 @app.route('/api/user/<string:username>/trip/<string:trip_id>/update', methods=['PUT'])
@@ -481,16 +483,12 @@ def get_participants(trip_id):
 
 
 def add_participant_from_response(session, json_participant, trip):
-    if 'username' not in json_participant:
-        return make_response(jsonify({'error': 'Missing required parameter'}), 422)
-
-    user = session.query(User).filter_by(username=json_participant["username"]).first()
+    user = session.query(User).filter_by(username=json_participant).first()
     if user is not None:
         return Participant(user, trip)
     return None
 
 
-# czy powinnam zwracac którzy użytkownicy zostali dodani a którzy nie?
 @app.route('/api/user/<string:username>/trip/<int:trip_id>/add-participants', methods=['POST'])
 def add_participants(username, trip_id):
     if not request.json or 'participants' not in request.json:
@@ -544,10 +542,8 @@ def delete_participants(username, trip_id):
     trip = session.query(Trip).filter(and_(Trip.trip_id == trip_id, Trip.owner_name == username)).first()
     if trip is not None:
         for p in participants:
-            if 'username' not in p:
-                return make_response(jsonify({'error': 'Missing required parameter'}), 422)
             session.query(Participant).filter(
-                and_(Participant.username == p["username"], Participant.trip_id == trip_id)).delete()
+                and_(Participant.username == p, Participant.trip_id == trip_id)).delete()
         commit_and_close(session)
         return make_response(jsonify({'Response': 'OK'}), 201)
     commit_and_close(session)
